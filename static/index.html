@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Logium</title>
+    <style>
+        :root {
+            --color-green: #7AEE4F;
+            --color-green-1: #6dd546;
+            --color-green-2: #36d39d;
+            --color-dark: #111;
+
+            --color-background: var(--color-dark);
+            --color-text: var(--color-green)
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--color-background);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .custom-scroll {
+            scrollbar-color: var(--color-green);
+            scrollbar-width: 6px;
+            overflow-scrolling: touch;
+            overflow: auto;
+            overscroll-behavior: none none;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+            padding: 1px;
+            background-color: transparent;
+            cursor: pointer;
+        }
+
+        .custom-scroll::-webkit-scrollbar-track {
+            background-color: transparent;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background-color: var(--color-green);
+            border-radius: 3px;
+            box-shadow: none;
+            cursor: pointer;
+            transition: .2s linear;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            cursor: pointer;
+            background-color: var(--color-green-1);
+        }
+
+        .custom-scroll::-webkit-scrollbar-button {
+            display: none;
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        .bookmarks {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 0;
+            padding: 1rem 0;
+            height: 100%;
+        }
+
+        .bookmarks li + li {
+            margin-top: 0.5rem;
+        }
+
+        .bookmarks label {
+            --color-bookmark: #ccc;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .bookmarks label span {
+            overflow: hidden;
+            background-color: var(--color-bookmark);
+            color: #111;
+            padding: 3px;
+            width: 20px;
+            white-space: nowrap;
+            display: inline-block;
+        }
+
+        .bookmarks label:after {
+            position: absolute;
+            left: 100%;
+            top: -10px;
+            content: '';
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 12px 0 12px 14px;
+            border-color: transparent transparent transparent var(--color-bookmark);
+        }
+
+        .bookmarks label:hover span {
+            width: unset;
+        }
+
+        .bookmarks label.active {
+            --color-bookmark: var(--color-green);
+        }
+
+        .screen {
+            height: 100%;
+            background-color: #111;
+            padding: 1rem 1rem 1rem 2.5rem;
+            color: #ccc;
+            min-height: 100vh;
+        }
+
+        .screen-messages {
+            display: none;
+        }
+
+        .screen input[name="active_log"]:checked + .screen-messages {
+            display: block;
+        }
+
+        .screen-messages li {
+            font-size: 12px;
+            line-height: 16px;
+            color: var(--color-text);
+        }
+
+        .screen-messages li:not(:last-child) {
+            margin-bottom: 0.5rem;
+        }
+
+        .screen-messages pre {
+            white-space: pre-wrap;
+        }
+
+        #bottom {
+            height: 0.5rem;
+        }
+
+        button {
+            cursor: pointer;
+            padding: 0.5rem;
+            color: var(--color-green);
+            background-color: var(--color-dark);
+            border-color: var(--color-green);
+            border-width: 1px;
+        }
+
+        #to-bottom-btn {
+            position: fixed;
+            z-index: 2;
+            bottom: 2rem;
+            right: 2rem;
+            font-weight: bold;
+            font-size: 1.5rem;
+            line-height: 1;
+            transform: rotate(90deg);
+        }
+    </style>
+</head>
+<body>
+<div id="bookmarks" class="bookmarks">
+    <ul id="log-names"></ul>
+</div>
+<div id="screen" class="screen custom-scroll">
+    <div class="screen-inner" id="logs"></div>
+    <div id="bottom"></div>
+</div>
+<button id="to-bottom-btn" type="button" hidden onclick="scrollToEnd()">&#10145;</button>
+</body>
+<script type="text/javascript">
+    let RECONNECT = 1000;
+
+    let doScrollToBottom = true
+    let lastScrollTop = 0
+    let logs = {};
+
+    const logsScreen = document.querySelector('#screen')
+    const logNames = document.querySelector('#log-names')
+    const bookmarks = document.querySelector('#bookmarks')
+    const bottom = document.querySelector("#bottom")
+    const toBottomBtn = document.querySelector('#to-bottom-btn')
+
+    function scrollToEnd() {
+        logsScreen.scrollTo(0, logsScreen.firstElementChild.scrollHeight)
+    }
+
+    function changeBookmark(e) {
+        document.querySelector('#bookmarks label.active')?.classList.remove('active')
+        e.target.closest('label').classList.add('active')
+        requestAnimationFrame(scrollToEnd)
+    }
+
+    bookmarks.addEventListener('click', changeBookmark)
+
+    const scrolledToBottomObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting && !doScrollToBottom) {
+                doScrollToBottom = true
+                toBottomBtn.setAttribute('hidden', 'hidden')
+                observer.unobserve(entry.target)
+            }
+        })
+    }, {
+        root: logsScreen
+    })
+
+    function addLog(name) {
+
+        if (logs[name]) {
+            return
+        }
+
+        let index = Object.keys(logs).length + 1;
+        logs[name] = index
+
+        const logName = document.createElement('li')
+        logName.innerHTML = `<label for="log${index}"><span>${name}</span></label>`
+        logNames.appendChild(logName)
+
+        const logsDiv = document.createElement('div')
+        logsDiv.innerHTML = `<input type="radio" name="active_log" hidden id="log${index}"><ul class="screen-messages" id="log_${index}"></ul>`
+        document.querySelector('#logs').appendChild(logsDiv)
+
+        if (index === 1) {
+            logName.querySelector('label').click()
+        }
+    }
+
+    function appendMessage(log, content) {
+        addLog(log)
+
+        let index = logs[log]
+
+        const li = document.createElement("li");
+        li.innerHTML = `<pre>${content}</pre>`
+        document.querySelector(`#log_${index}`).appendChild(li);
+        if (doScrollToBottom) {
+            scrollToEnd()
+        }
+    }
+
+    function scrollListener(e) {
+        if (e.target.scrollTop < lastScrollTop && doScrollToBottom) {
+            doScrollToBottom = false
+            toBottomBtn.removeAttribute('hidden')
+            scrolledToBottomObserver.observe(bottom)
+        }
+        lastScrollTop = e.target.scrollTop
+    }
+
+    logsScreen.addEventListener('scroll', scrollListener)
+
+    window.addEventListener('unload', function () {
+        logsScreen.removeEventListener('scroll', scrollListener)
+        bookmarks.removeEventListener('click', changeBookmark)
+        scrolledToBottomObserver.disconnect()
+    }, {once: true})
+
+
+    function connect() {
+        const ws = new WebSocket("ws://" + location.host + "/ws");
+
+        ws.onopen = function () {
+            RECONNECT = 1000;
+        }
+
+        ws.onmessage = function (e) {
+            const [log, line] = e.data.split('|', 2)
+            appendMessage(log, line)
+        };
+
+        ws.onclose = function (e) {
+            console.log(`Socket is closed. Reconnect will be attempted in ${RECONNECT} ms.`, e.reason);
+            setTimeout(function () {
+                connect();
+            }, RECONNECT);
+        };
+
+        ws.onerror = function (err) {
+            RECONNECT += 1000;
+            console.error('Socket encountered error: ', err.message, 'Closing socket');
+            ws.close();
+        };
+    }
+
+    connect();
+
+</script>
+</html>

@@ -1,0 +1,16 @@
+{
+  "server": {
+    "port": 3333,
+    "last": 5,
+    "auth": {
+      "user1": "password1",
+      "user2": "password2"
+    }
+  },
+  "sources": [
+    {
+      "name": "errors",
+      "path": "/var/error.log"
+    }
+  ]
+}
